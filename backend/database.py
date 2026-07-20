@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from backend.supabase_client import supabase
 
 # Create data folder if it doesn't exist
 os.makedirs("data", exist_ok=True)

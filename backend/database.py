@@ -1,77 +1,227 @@
-import sqlite3
-import os
+"""
+=========================================================
+MedCare Database Module
+Backend : Supabase
+=========================================================
+"""
+
 from backend.supabase_client import supabase
 
-# Create data folder if it doesn't exist
-os.makedirs("data", exist_ok=True)
 
-DB_PATH = "data/medcare.db"
+# =========================================================
+# CONNECTION TEST
+# =========================================================
+
+def test_connection():
+    """
+    Test Supabase connection.
+    """
+
+    try:
+        response = (
+            supabase
+            .table("users")
+            .select("*")
+            .limit(1)
+            .execute()
+        )
+
+        print("✅ Supabase Connected Successfully")
+        return True
+
+    except Exception as e:
+        print(f"❌ Supabase Connection Error:\n{e}")
+        return False
 
 
-def create_database():
+# =========================================================
+# USER FUNCTIONS
+# =========================================================
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+def create_user(
+    full_name,
+    username,
+    password,
+    role,
+    email,
+    mobile,
+    address,
+    connection_code
+):
+    """
+    Register new user.
+    """
 
-    # =====================================================
-    # USERS TABLE
-    # =====================================================
+    try:
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
+        response = (
+            supabase
+            .table("users")
+            .insert({
+                "full_name": full_name,
+                "username": username,
+                "password": password,
+                "role": role,
+                "email": email,
+                "mobile": mobile,
+                "address": address,
+                "connection_code": connection_code
+            })
+            .execute()
+        )
 
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        return response.data
 
-        full_name TEXT NOT NULL,
+    except Exception as e:
+        print(e)
+        return None
 
-        username TEXT UNIQUE NOT NULL,
 
-        password TEXT NOT NULL,
+def get_user(username):
 
-        role TEXT NOT NULL,
+    try:
 
-        email TEXT NOT NULL,
+        response = (
+            supabase
+            .table("users")
+            .select("*")
+            .eq("username", username)
+            .execute()
+        )
 
-        mobile TEXT NOT NULL,
+        if response.data:
+            return response.data[0]
 
-        address TEXT,
+        return None
 
-        connection_code TEXT UNIQUE
-    )
-    """)
+    except Exception as e:
+        print(e)
+        return None
 
-    # =====================================================
-    # CONNECTIONS TABLE
-    # One Senior -> Many Caregivers
-    # =====================================================
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS connections (
+def get_user_by_connection_code(code):
 
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    try:
 
-        senior_username TEXT NOT NULL,
+        response = (
+            supabase
+            .table("users")
+            .select("*")
+            .eq("connection_code", code)
+            .execute()
+        )
 
-        caregiver_username TEXT NOT NULL,
+        if response.data:
+            return response.data[0]
 
-        UNIQUE(
-            senior_username,
-            caregiver_username
-        ),
+        return None
 
-        FOREIGN KEY(senior_username)
-            REFERENCES users(username),
+    except Exception as e:
+        print(e)
+        return None
 
-        FOREIGN KEY(caregiver_username)
-            REFERENCES users(username)
-    )
-    """)
 
-    conn.commit()
-    conn.close()
+# =========================================================
+# CONNECTION FUNCTIONS
+# =========================================================
 
-    print("✅ MedCare database created successfully.")
+def connect_caregiver(
+    senior_username,
+    caregiver_username
+):
 
+    try:
+
+        response = (
+            supabase
+            .table("connections")
+            .insert({
+                "senior_username": senior_username,
+                "caregiver_username": caregiver_username
+            })
+            .execute()
+        )
+
+        return response.data
+
+    except Exception as e:
+        print(e)
+        return None
+
+
+def get_connected_caregivers(
+    senior_username
+):
+
+    try:
+
+        response = (
+            supabase
+            .table("connections")
+            .select("*")
+            .eq("senior_username", senior_username)
+            .execute()
+        )
+
+        return response.data
+
+    except Exception as e:
+        print(e)
+        return []
+
+
+def get_connected_seniors(
+    caregiver_username
+):
+
+    try:
+
+        response = (
+            supabase
+            .table("connections")
+            .select("*")
+            .eq("caregiver_username", caregiver_username)
+            .execute()
+        )
+
+        return response.data
+
+    except Exception as e:
+        print(e)
+        return []
+
+
+# =========================================================
+# DELETE FUNCTIONS
+# =========================================================
+
+def delete_connection(
+    senior_username,
+    caregiver_username
+):
+
+    try:
+
+        response = (
+            supabase
+            .table("connections")
+            .delete()
+            .eq("senior_username", senior_username)
+            .eq("caregiver_username", caregiver_username)
+            .execute()
+        )
+
+        return response.data
+
+    except Exception as e:
+        print(e)
+        return None
+
+
+# =========================================================
+# MAIN
+# =========================================================
 
 if __name__ == "__main__":
-    create_database()
+
+    test_connection()

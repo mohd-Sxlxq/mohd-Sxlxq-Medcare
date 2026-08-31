@@ -1,139 +1,150 @@
-import sqlite3
 import pandas as pd
 
-DB_PATH = "data/medcare.db"
+from backend.supabase_client import supabase
 
 
-def get_connection():
-    return sqlite3.connect(DB_PATH)
+# =========================================================
+# CREATE REMINDER TABLE
+# =========================================================
+# The actual table is created in Supabase SQL Editor.
+# This function is kept so existing application code
+# calling create_reminder_table() does not break.
 
-
-# ---------------- CREATE REMINDER TABLE ----------------
 
 def create_reminder_table():
 
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS reminders(
-
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-        senior TEXT NOT NULL,
-
-        medicine TEXT NOT NULL,
-
-        start_time TEXT,
-
-        end_time TEXT,
-
-        taken TEXT DEFAULT 'No',
-
-        notified TEXT DEFAULT 'No'
-    )
-    """)
-
-    conn.commit()
-    conn.close()
+    print("✅ Reminder table is managed by Supabase.")
 
 
-create_reminder_table()
+# =========================================================
+# SAVE REMINDER
+# =========================================================
 
+def save_reminder(
+    medicine,
+    start_time,
+    end_time,
+    senior
+):
 
-# ---------------- SAVE REMINDER ----------------
+    try:
 
-def save_reminder(medicine, start_time, end_time, senior):
+        data = {
+            "senior": senior.strip().lower(),
+            "medicine": medicine.strip(),
+            "start_time": start_time,
+            "end_time": end_time,
+            "taken": "No",
+            "notified": "No"
+        }
 
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO reminders
-        (
-            senior,
-            medicine,
-            start_time,
-            end_time,
-            taken,
-            notified
+        response = (
+            supabase
+            .table("reminders")
+            .insert(data)
+            .execute()
         )
-        VALUES
-        (?, ?, ?, ?, 'No', 'No')
-    """,
-    (
-        senior.lower(),
-        medicine,
-        start_time,
-        end_time
-    ))
 
-    conn.commit()
-    conn.close()
+        return bool(response.data)
+
+    except Exception as e:
+
+        print("❌ Save reminder error:", e)
+        return False
 
 
-# ---------------- GET REMINDERS ----------------
+# =========================================================
+# GET REMINDERS FOR SENIOR
+# =========================================================
 
 def get_reminders_for_senior(senior):
 
-    conn = get_connection()
+    try:
 
-    query = """
-        SELECT
-            id,
-            medicine AS Medicine,
-            start_time AS Start,
-            end_time AS End,
-            taken AS Taken,
-            notified AS Notified
+        response = (
+            supabase
+            .table("reminders")
+            .select(
+                "id,medicine,start_time,end_time,taken,notified"
+            )
+            .eq(
+                "senior",
+                senior.strip().lower()
+            )
+            .order("start_time")
+            .execute()
+        )
 
-        FROM reminders
+        rows = response.data
 
-        WHERE senior=?
+        records = []
 
-        ORDER BY start_time
-    """
+        for row in rows:
 
-    df = pd.read_sql_query(
-        query,
-        conn,
-        params=(senior.lower(),)
-    )
+            records.append({
+                "id": row.get("id"),
+                "Medicine": row.get("medicine"),
+                "Start": row.get("start_time"),
+                "End": row.get("end_time"),
+                "Taken": row.get("taken"),
+                "Notified": row.get("notified")
+            })
 
-    conn.close()
+        return pd.DataFrame(records)
 
-    return df
+    except Exception as e:
+
+        print("❌ Get reminders error:", e)
+        return pd.DataFrame()
 
 
-# ---------------- MARK AS TAKEN ----------------
+# =========================================================
+# MARK AS TAKEN
+# =========================================================
 
 def mark_taken(reminder_id):
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    try:
 
-    cursor.execute("""
-        UPDATE reminders
-        SET taken='Yes'
-        WHERE id=?
-    """, (reminder_id,))
+        response = (
+            supabase
+            .table("reminders")
+            .update({
+                "taken": "Yes"
+            })
+            .eq("id", reminder_id)
+            .execute()
+        )
 
-    conn.commit()
-    conn.close()
+        return bool(response.data)
+
+    except Exception as e:
+
+        print("❌ Mark taken error:", e)
+        return False
 
 
-# ---------------- MARK AS NOTIFIED ----------------
+# =========================================================
+# MARK AS NOTIFIED
+# =========================================================
 
 def mark_notified(reminder_id):
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    try:
 
-    cursor.execute("""
-        UPDATE reminders
-        SET notified='Yes'
-        WHERE id=?
-    """, (reminder_id,))
+        response = (
+            supabase
+            .table("reminders")
+            .update({
+                "notified": "Yes"
+            })
+            .eq("id", reminder_id)
+            .execute()
+        )
 
-    conn.commit()
-    conn.close()
+        return bool(response.data)
+
+    except Exception as e:
+
+        print("❌ Mark notified error:", e)
+        return False

@@ -1,118 +1,210 @@
 import streamlit as st
-import requests
 from datetime import datetime
+
 from backend.user import (
     get_connection_code,
-    get_connected_caregivers
+    get_connected_caregivers,
 )
+
 from backend.storage import (
+    save_health_record,
     get_latest_health,
-    get_last_7_records
+    get_last_7_records,
 )
 
 from backend.reminder import (
     get_reminders_for_senior,
     mark_taken,
-    mark_notified
+    mark_notified,
 )
 
-from backend.mail import send_missed_med_alert
+from backend.mail import (
+    send_missed_med_alert,
+    send_email_alert,
+)
 
 
 def show_senior_dashboard():
 
     st.title("🧓 Senior Dashboard")
-    st.write("Welcome to MedCare")
-    st.subheader("🔗 Your Connection Code")
+    st.write(f"Welcome, **{st.session_state.username}**")
 
-    code = get_connection_code(
+    # =====================================================
+    # CONNECTION CODE
+    # =====================================================
+
+    st.subheader("🔗 Caregiver Connection")
+
+    connection_code = get_connection_code(
         st.session_state.username
     )
 
-    st.code(code)
-
-    st.info(
-    "Share this code with your caregiver to connect."
-    )
-    
-
-    # ================= HEALTH INPUT =================
-
-    st.subheader("🩺 Enter Health Details")
-
-    bp = st.number_input(
-        "Blood Pressure",
-        min_value=0.0
-    )   
-
-    sugar = st.number_input(
-        "Sugar Level",
-        min_value=0.0
-    )
-
-    hr = st.number_input(
-        "Heart Rate",
-        min_value=0.0
-    )
-
-    if st.button("Check Health"):
-
-        response = requests.post(
-            "http://127.0.0.1:8000/submit-health",
-            params={
-                "senior": st.session_state.username,
-                "bp": bp,
-                "sugar": sugar,
-                "hr": hr
-            }
+    if connection_code:
+        st.code(connection_code)
+        st.info(
+            "Share this connection code with your caregiver."
         )
+    else:
+        st.warning("Connection code is not available.")
 
-        if response.status_code == 200:
+    # =====================================================
+    # CONNECTED CAREGIVERS
+    # =====================================================
 
-            risk = response.json()["risk_level"]
+    caregivers = get_connected_caregivers(
+        st.session_state.username
+    )
 
-            if risk == "High Risk":
-                st.error("⚠ High Risk Detected")
+    st.subheader("👨‍⚕️ Connected Caregivers")
 
-            elif risk == "Warning":
-                st.warning("⚠ Warning")
+    if not caregivers:
+        st.info("No caregiver connected yet.")
+    else:
+        for caregiver in caregivers:
+            if isinstance(caregiver, (tuple, list)):
+                full_name = caregiver[0] if len(caregiver) > 0 else ""
+                username = caregiver[1] if len(caregiver) > 1 else ""
+                email = caregiver[2] if len(caregiver) > 2 else ""
+                mobile = caregiver[3] if len(caregiver) > 3 else ""
 
+                st.success(
+                    f"👨‍⚕️ **{full_name}**\n\n"
+                    f"Username: {username}\n\n"
+                    f"Email: {email}\n\n"
+                    f"Mobile: {mobile}"
+                )
             else:
-                st.success("✅ Your Health is Normal")
-
-        else:
-            st.error("Unable to connect to server.")
+                st.success(f"👨‍⚕️ {caregiver}")
 
     st.divider()
 
-    # ================= LATEST HEALTH =================
+    # =====================================================
+    # HEALTH INPUT
+    # =====================================================
+
+    st.subheader("🩺 Enter Health Details")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        bp = st.number_input(
+            "Blood Pressure",
+            min_value=0.0,
+            max_value=400.0,
+            value=120.0,
+            step=1.0,
+        )
+
+    with col2:
+        sugar = st.number_input(
+            "Sugar Level",
+            min_value=0.0,
+            max_value=1000.0,
+            value=100.0,
+            step=1.0,
+        )
+
+    with col3:
+        hr = st.number_input(
+            "Heart Rate",
+            min_value=0.0,
+            max_value=300.0,
+            value=75.0,
+            step=1.0,
+        )
+
+    if st.button(
+        "🩺 Check Health",
+        type="primary",
+        use_container_width=True,
+    ):
+
+        # Risk calculation
+        if bp > 160 or sugar > 250 or hr > 120:
+            risk = "High Risk"
+        elif bp > 140 or sugar > 180 or hr > 100:
+            risk = "Warning"
+        else:
+            risk = "Normal"
+
+        # Save directly to Supabase
+        saved = save_health_record(
+            st.session_state.username,
+            bp,
+            sugar,
+            hr,
+            risk,
+        )
+
+        if saved:
+            if risk == "High Risk":
+                st.error("⚠️ High Risk Detected")
+                
+                # Trigger email alert directly (Cloud Fix)
+                try:
+                    send_email_alert(
+                        st.session_state.username,
+                        bp,
+                        sugar,
+                        hr,
+                        risk
+                    )
+                except Exception as e:
+                    print("Email Alert Error:", e)
+
+            elif risk == "Warning":
+                st.warning(
+                    "⚠️ Warning: Please monitor your health."
+                )
+            else:
+                st.success("✅ Your Health is Normal")
+
+            st.success(
+                "✅ Health record saved successfully."
+            )
+
+            st.rerun()
+
+        else:
+            st.error("❌ Unable to save health record.")
+
+    st.divider()
+
+    # =====================================================
+    # LATEST HEALTH
+    # =====================================================
 
     st.subheader("❤️ Latest Health Status")
 
-    bp, sugar, hr = get_latest_health(
+    latest_bp, latest_sugar, latest_hr = get_latest_health(
         st.session_state.username
     )
 
     c1, c2, c3 = st.columns(3)
 
-    c1.metric(
-        "Blood Pressure",
-        bp if bp is not None else "--"
-    )
+    with c1:
+        st.metric(
+            "❤️ Blood Pressure",
+            latest_bp if latest_bp is not None else "--",
+        )
 
-    c2.metric(
-        "Sugar Level",
-        sugar if sugar is not None else "--"
-    )
+    with c2:
+        st.metric(
+            "🍬 Sugar Level",
+            latest_sugar if latest_sugar is not None else "--",
+        )
 
-    c3.metric(
-        "Heart Rate",
-        hr if hr is not None else "--"
-    )
+    with c3:
+        st.metric(
+            "💓 Heart Rate",
+            latest_hr if latest_hr is not None else "--",
+        )
 
     st.divider()
 
-    # ================= HISTORY =================
+    # =====================================================
+    # HEALTH HISTORY
+    # =====================================================
 
     st.subheader("📋 Recent Health Records")
 
@@ -121,18 +213,21 @@ def show_senior_dashboard():
     )
 
     if history.empty:
-        st.info("No records available.")
+        st.info("No health records available yet.")
     else:
         st.dataframe(
             history,
-            use_container_width=True
+            use_container_width=True,
+            hide_index=True,
         )
 
     st.divider()
 
-    # ================= MEDICATION =================
+    # =====================================================
+    # MEDICATION REMINDERS
+    # =====================================================
 
-    st.subheader("💊❤️ Medication Reminder")
+    st.subheader("💊 Medication Reminders")
 
     reminders = get_reminders_for_senior(
         st.session_state.username
@@ -147,71 +242,96 @@ def show_senior_dashboard():
     for _, row in reminders.iterrows():
 
         reminder_id = row["id"]
+        medicine = row["Medicine"]
+        start_value = row["Start"]
+        end_value = row["End"]
 
+        st.markdown(f"### 💊 {medicine}")
         st.write(
-            f"💊 **{row['Medicine']}**"
+            f"🕒 **{start_value} - {end_value}**"
         )
 
-        st.write(
-            f"🕒 {row['Start']} - {row['End']}"
-        )
+        try:
+            start = datetime.strptime(
+                str(start_value),
+                "%H:%M:%S",
+            ).time()
 
-        start = datetime.strptime(
-            str(row["Start"]),
-            "%H:%M:%S"
-        ).time()
+            end = datetime.strptime(
+                str(end_value),
+                "%H:%M:%S",
+            ).time()
 
-        end = datetime.strptime(
-            str(row["End"]),
-            "%H:%M:%S"
-        ).time()
+        except ValueError:
+            st.warning(
+                f"Invalid reminder time for {medicine}."
+            )
+            continue
 
-        if row["Taken"] == "No":
+        taken = str(row["Taken"]).strip().lower()
+        notified = str(row["Notified"]).strip().lower()
 
+        if taken == "no":
+
+            # Medication window is active
             if start <= now <= end:
 
                 if st.button(
-                    f"Mark Taken - {row['Medicine']}",
-                    key=f"taken_{reminder_id}"
+                    f"✅ Mark {medicine} as Taken",
+                    key=f"taken_{reminder_id}",
+                    use_container_width=True,
                 ):
 
-                    mark_taken(reminder_id)
+                    result = mark_taken(reminder_id)
 
-                    st.success(
-                        "Medicine marked as taken."
-                    )
+                    if result:
+                        st.success(
+                            f"✅ {medicine} marked as taken."
+                        )
+                        st.rerun()
+                    else:
+                        st.error(
+                            "❌ Unable to update medication."
+                        )
 
-                    st.rerun()
-
+            # Medication window has ended
             elif now > end:
 
-                if row["Notified"] == "No":
+                if notified == "no":
 
-                    send_missed_med_alert(
+                    alert_sent = send_missed_med_alert(
                         st.session_state.username,
-                        row["Medicine"]
+                        medicine,
                     )
 
                     mark_notified(reminder_id)
 
-                    st.error(
-                        "Medication missed. Caregiver notified."
-                    )
+                    if alert_sent:
+                        st.error(
+                            f"🚨 {medicine} was missed. "
+                            "Caregiver notified."
+                        )
+                    else:
+                        st.warning(
+                            f"⚠️ {medicine} was missed. "
+                            "Caregiver notification could not be sent."
+                        )
 
                 else:
-
                     st.error(
-                        "Medication missed."
+                        f"🚨 {medicine} was missed."
                     )
 
+            # Medication window has not started
             else:
-
                 st.info(
-                    "Not time yet."
+                    f"⏳ It is not time to take "
+                    f"{medicine} yet."
                 )
 
         else:
-
             st.success(
-                "✅ Medicine Taken"
+                f"✅ {medicine} — Medicine Taken"
             )
+
+        st.divider()

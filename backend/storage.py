@@ -1,211 +1,205 @@
-import os
-import sqlite3
 import pandas as pd
 from datetime import datetime
 
-DB_PATH = "data/medcare.db"
+from backend.supabase_client import supabase
 
 
-def get_connection():
-    return sqlite3.connect(DB_PATH)
+# =========================================================
+# CREATE HEALTH TABLE
+# =========================================================
+# Table creation is handled in Supabase SQL Editor.
+# This function is kept for compatibility with the old code.
 
-
-# ---------------- CREATE HEALTH TABLE ----------------
 
 def create_health_table():
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS health (
-
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-        senior TEXT NOT NULL,
-
-        date TEXT,
-
-        time TEXT,
-
-        blood_pressure REAL,
-
-        sugar_level REAL,
-
-        heart_rate REAL,
-
-        risk_level TEXT
-    )
-    """)
-
-    conn.commit()
-    conn.close()
+    print("✅ Health table is managed by Supabase.")
 
 
-create_health_table()
-
-
-# ---------------- SAVE HEALTH RECORD ----------------
+# =========================================================
+# SAVE HEALTH RECORD
+# =========================================================
 
 def save_health_record(senior, bp, sugar, hr, risk):
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    try:
 
-    now = datetime.now()
+        now = datetime.now()
 
-    cursor.execute("""
-        INSERT INTO health
-        (
-            senior,
-            date,
-            time,
-            blood_pressure,
-            sugar_level,
-            heart_rate,
-            risk_level
+        data = {
+            "senior": senior.strip().lower(),
+            "date": now.strftime("%Y-%m-%d"),
+            "time": now.strftime("%H:%M:%S"),
+            "blood_pressure": bp,
+            "sugar_level": sugar,
+            "heart_rate": hr,
+            "risk_level": risk
+        }
+
+        response = (
+            supabase
+            .table("health")
+            .insert(data)
+            .execute()
         )
-        VALUES
-        (?, ?, ?, ?, ?, ?, ?)
-    """,
-    (
-        senior.lower(),
-        now.strftime("%Y-%m-%d"),
-        now.strftime("%H:%M:%S"),
-        bp,
-        sugar,
-        hr,
-        risk
-    ))
 
-    conn.commit()
-    conn.close()
+        return bool(response.data)
+
+    except Exception as e:
+
+        print("❌ Save health record error:", e)
+        return False
 
 
-# ---------------- GET LATEST HEALTH ----------------
+# =========================================================
+# GET LATEST HEALTH
+# =========================================================
 
 def get_latest_health(senior):
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    try:
 
-    cursor.execute("""
-        SELECT
-            blood_pressure,
-            sugar_level,
-            heart_rate
+        response = (
+            supabase
+            .table("health")
+            .select(
+                "blood_pressure,sugar_level,heart_rate"
+            )
+            .eq("senior", senior.strip().lower())
+            .order("id", desc=True)
+            .limit(1)
+            .execute()
+        )
 
-        FROM health
+        if response.data:
 
-        WHERE senior=?
+            row = response.data[0]
 
-        ORDER BY id DESC
+            return (
+                row["blood_pressure"],
+                row["sugar_level"],
+                row["heart_rate"]
+            )
 
-        LIMIT 1
-    """,
-    (senior.lower(),))
+        return None, None, None
 
-    row = cursor.fetchone()
+    except Exception as e:
 
-    conn.close()
-
-    if row:
-        return row
-
-    return None, None, None
+        print("❌ Get latest health error:", e)
+        return None, None, None
 
 
-# ---------------- LAST 7 RECORDS ----------------
+# =========================================================
+# LAST 7 RECORDS
+# =========================================================
 
 def get_last_7_records(senior):
 
-    conn = get_connection()
+    try:
 
-    query = """
-        SELECT
-            date AS Date,
-            time AS Time,
-            blood_pressure AS 'Blood Pressure',
-            sugar_level AS 'Sugar Level',
-            heart_rate AS 'Heart Rate',
-            risk_level AS 'Risk Level'
+        response = (
+            supabase
+            .table("health")
+            .select(
+                "date,time,blood_pressure,"
+                "sugar_level,heart_rate,risk_level"
+            )
+            .eq("senior", senior.strip().lower())
+            .order("id", desc=True)
+            .limit(7)
+            .execute()
+        )
 
-        FROM health
+        rows = response.data
 
-        WHERE senior=?
+        records = []
 
-        ORDER BY id DESC
+        for row in rows:
 
-        LIMIT 7
-    """
+            records.append({
+                "Date": row.get("date"),
+                "Time": row.get("time"),
+                "Blood Pressure": row.get("blood_pressure"),
+                "Sugar Level": row.get("sugar_level"),
+                "Heart Rate": row.get("heart_rate"),
+                "Risk Level": row.get("risk_level")
+            })
 
-    df = pd.read_sql_query(
-        query,
-        conn,
-        params=(senior.lower(),)
-    )
+        return pd.DataFrame(records)
 
-    conn.close()
+    except Exception as e:
 
-    return df
+        print("❌ Get last 7 records error:", e)
+        return pd.DataFrame()
 
 
-# ---------------- FULL HISTORY ----------------
+# =========================================================
+# FULL HISTORY
+# =========================================================
 
 def get_all_records(senior):
 
-    conn = get_connection()
+    try:
 
-    query = """
-        SELECT
-            date AS Date,
-            time AS Time,
-            blood_pressure AS 'Blood Pressure',
-            sugar_level AS 'Sugar Level',
-            heart_rate AS 'Heart Rate',
-            risk_level AS 'Risk Level'
+        response = (
+            supabase
+            .table("health")
+            .select(
+                "date,time,blood_pressure,"
+                "sugar_level,heart_rate,risk_level"
+            )
+            .eq("senior", senior.strip().lower())
+            .order("id", desc=True)
+            .execute()
+        )
 
-        FROM health
+        rows = response.data
 
-        WHERE senior=?
+        records = []
 
-        ORDER BY id DESC
-    """
+        for row in rows:
 
-    df = pd.read_sql_query(
-        query,
-        conn,
-        params=(senior.lower(),)
-    )
+            records.append({
+                "Date": row.get("date"),
+                "Time": row.get("time"),
+                "Blood Pressure": row.get("blood_pressure"),
+                "Sugar Level": row.get("sugar_level"),
+                "Heart Rate": row.get("heart_rate"),
+                "Risk Level": row.get("risk_level")
+            })
 
-    conn.close()
+        return pd.DataFrame(records)
 
-    return df
-# ---------------- GET LATEST RISK ----------------
+    except Exception as e:
+
+        print("❌ Get all records error:", e)
+        return pd.DataFrame()
+
+
+# =========================================================
+# GET LATEST RISK
+# =========================================================
 
 def get_latest_risk(senior):
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    try:
 
-    cursor.execute("""
-        SELECT risk_level
+        response = (
+            supabase
+            .table("health")
+            .select("risk_level")
+            .eq("senior", senior.strip().lower())
+            .order("id", desc=True)
+            .limit(1)
+            .execute()
+        )
 
-        FROM health
+        if response.data:
 
-        WHERE senior=?
+            return response.data[0].get("risk_level")
 
-        ORDER BY id DESC
+        return None
 
-        LIMIT 1
-    """,
-    (senior.lower(),))
+    except Exception as e:
 
-    row = cursor.fetchone()
-
-    conn.close()
-
-    if row:
-        return row[0]
-
-    return None
+        print("❌ Get latest risk error:", e)
+        return None

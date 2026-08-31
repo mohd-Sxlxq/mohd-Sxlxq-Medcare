@@ -14,7 +14,7 @@ def hash_password(password):
 
 
 # =========================================================
-# GENERATE SENIOR CONNECTION CODE
+# CONNECTION CODE
 # =========================================================
 
 def generate_connection_code():
@@ -28,27 +28,20 @@ def generate_connection_code():
             )
         )
 
-        try:
+        response = (
+            supabase
+            .table("users")
+            .select("id")
+            .eq("connection_code", code)
+            .execute()
+        )
 
-            response = (
-                supabase
-                .table("users")
-                .select("id")
-                .eq("connection_code", code)
-                .execute()
-            )
-
-            if not response.data:
-                return code
-
-        except Exception as e:
-
-            print("❌ Connection code generation error:", e)
-            return None
+        if not response.data:
+            return code
 
 
 # =========================================================
-# CREATE USER
+# CREATE USER / REGISTER
 # =========================================================
 
 def create_user(
@@ -65,70 +58,45 @@ def create_user(
     email = email.strip().lower()
     role = role.strip().title()
 
-    try:
-        # Check if username already exists in our table
-        response = (
-            supabase
-            .table("users")
-            .select("id")
-            .eq("username", username)
-            .execute()
-        )
+    # Check whether username already exists
+    response = (
+        supabase
+        .table("users")
+        .select("id")
+        .eq("username", username)
+        .execute()
+    )
 
-        if response.data:
-            return False, "Username already exists."
+    if response.data:
+        return False
 
-    except Exception as e:
-        print("❌ Username check error:", e)
-        return False, "Database connection error while checking username."
+    password_hash = hash_password(password)
 
     connection_code = None
 
+    # Only Senior gets a connection code
     if role == "Senior":
         connection_code = generate_connection_code()
 
-        if connection_code is None:
-            return False, "Failed to generate connection code."
-
     try:
-        # Create Supabase Auth account
-        auth_response = supabase.auth.sign_up({
-            "email": email,
-            "password": password
-        })
 
-        if not auth_response.user:
-            return False, "Supabase Auth registration failed."
-
-        auth_id = str(auth_response.user.id)
-
-        # Create MedCare profile
         supabase.table("users").insert({
             "full_name": full_name.strip(),
             "username": username,
-            "password": hash_password(password),
+            "password": password_hash,
             "role": role,
             "email": email,
             "mobile": mobile.strip(),
             "address": address.strip(),
-            "connection_code": connection_code,
-            "auth_id": auth_id
+            "connection_code": connection_code
         }).execute()
 
-        print("✅ User registered successfully.")
-        return True, "Account created successfully."
+        return True
 
     except Exception as e:
-        error_msg = str(e)
-        print("❌ Create user error:", error_msg)
-        
-        # Translate Supabase errors into human-readable messages
-        if "already registered" in error_msg.lower() or "duplicate" in error_msg.lower():
-            return False, "This email address is already registered."
-        if "characters" in error_msg.lower() or "password" in error_msg.lower():
-            return False, "Password must be at least 6 characters long."
-            
-        return False, f"Registration failed: {error_msg}"
+
+        print("❌ Create user error:", e)
+        return False
 
 
 # =========================================================
@@ -138,50 +106,23 @@ def create_user(
 def authenticate_user(username, password):
 
     username = username.strip().lower()
+    password_hash = hash_password(password)
 
     try:
 
-        response = supabase.rpc(
-            "get_login_user",
-            {
-                "p_username": username
-            }
-        ).execute()
+        response = (
+            supabase
+            .table("users")
+            .select("role")
+            .eq("username", username)
+            .eq("password", password_hash)
+            .execute()
+        )
 
-        if not response.data:
+        if response.data:
+            return response.data[0]["role"]
 
-            print("❌ User not found.")
-            return None
-
-        user = response.data[0]
-
-        email = user["email"]
-
-        # Supabase Auth login
-        auth_response = supabase.auth.sign_in_with_password({
-
-            "email": email,
-            "password": password
-
-        })
-
-        if not auth_response.user:
-
-            print("❌ Supabase login failed.")
-            return None
-
-        # Verify Auth ID
-        if user.get("auth_id"):
-
-            if str(auth_response.user.id) != str(user["auth_id"]):
-
-                print("❌ Authentication identity mismatch.")
-                return None
-
-        print("✅ Supabase session created.")
-        print("Auth user ID:", auth_response.user.id)
-
-        return user["role"]
+        return None
 
     except Exception as e:
 
@@ -208,7 +149,6 @@ def get_user(username):
         )
 
         if response.data:
-
             return response.data[0]
 
         return None
@@ -238,7 +178,6 @@ def get_connection_code(username):
         )
 
         if response.data:
-
             return response.data[0]["connection_code"]
 
         return None
@@ -254,11 +193,6 @@ def get_connection_code(username):
 # =========================================================
 
 def verify_connection_code(connection_code):
-
-    if not connection_code:
-
-        print("❌ Connection code is empty.")
-        return False
 
     connection_code = connection_code.strip().upper()
 
@@ -290,43 +224,27 @@ def connect_caregiver_to_senior(
     caregiver
 ):
 
-    if not connection_code:
-
-        print("❌ Connection code is empty.")
-        return False
-
-    if not caregiver:
-
-        print("❌ Caregiver username is empty.")
-        return False
-
-    connection_code = connection_code.strip().upper()
     caregiver = caregiver.strip().lower()
+    connection_code = connection_code.strip().upper()
 
     try:
 
-        # -------------------------------------------------
-        # Find Senior using SECURITY DEFINER RPC
-        # -------------------------------------------------
-
-        response = supabase.rpc(
-            "get_senior_by_connection_code",
-            {
-                "p_connection_code": connection_code
-            }
-        ).execute()
+        # Find Senior using connection code
+        response = (
+            supabase
+            .table("users")
+            .select("username")
+            .eq("connection_code", connection_code)
+            .eq("role", "Senior")
+            .execute()
+        )
 
         if not response.data:
-
-            print("❌ Senior not found.")
             return False
 
         senior_username = response.data[0]["username"]
 
-        # -------------------------------------------------
-        # Check caregiver
-        # -------------------------------------------------
-
+        # Make sure caregiver exists
         caregiver_response = (
             supabase
             .table("users")
@@ -337,59 +255,23 @@ def connect_caregiver_to_senior(
         )
 
         if not caregiver_response.data:
-
-            print("❌ Caregiver not found.")
             return False
 
-        # -------------------------------------------------
-        # Check existing connection
-        # -------------------------------------------------
-
-        existing = (
-            supabase
-            .table("connections")
-            .select("id")
-            .eq("senior_username", senior_username)
-            .eq("caregiver_username", caregiver)
-            .execute()
-        )
-
-        if existing.data:
-
-            print("✅ Caregiver is already connected to this Senior.")
-            return True
-
-        # -------------------------------------------------
         # Create connection
-        # -------------------------------------------------
-
         supabase.table("connections").insert({
-
             "senior_username": senior_username,
             "caregiver_username": caregiver
-
         }).execute()
-
-        print("✅ Caregiver connected to Senior.")
 
         return True
 
     except Exception as e:
 
-        error_message = str(e).lower()
-
-        if (
-            "duplicate" in error_message
-            or "already exists" in error_message
-            or "unique constraint" in error_message
-            or "23505" in error_message
-        ):
-
-            print("✅ Caregiver is already connected to this Senior.")
+        # Duplicate connection is not a fatal application error
+        if "duplicate" in str(e).lower():
             return True
 
-        print("❌ Caregiver connection error:", repr(e))
-
+        print("❌ Caregiver connection error:", e)
         return False
 
 
@@ -428,11 +310,8 @@ def get_my_seniors(caregiver):
         )
 
         return [
-
             row["senior_username"]
-
             for row in response.data
-
         ]
 
     except Exception as e:
@@ -454,7 +333,9 @@ def get_connected_caregivers(senior):
         response = (
             supabase
             .table("connections")
-            .select("caregiver_username")
+            .select(
+                "caregiver_username"
+            )
             .eq("senior_username", senior)
             .order("caregiver_username")
             .execute()
@@ -464,9 +345,7 @@ def get_connected_caregivers(senior):
 
         for connection in response.data:
 
-            caregiver_username = connection[
-                "caregiver_username"
-            ]
+            caregiver_username = connection["caregiver_username"]
 
             caregiver_response = (
                 supabase
@@ -474,24 +353,18 @@ def get_connected_caregivers(senior):
                 .select(
                     "full_name,username,email,mobile"
                 )
-                .eq(
-                    "username",
-                    caregiver_username
-                )
+                .eq("username", caregiver_username)
                 .execute()
             )
 
             if caregiver_response.data:
-
                 caregiver = caregiver_response.data[0]
 
                 results.append((
-
                     caregiver["full_name"],
                     caregiver["username"],
                     caregiver["email"],
                     caregiver["mobile"]
-
                 ))
 
         return results
@@ -521,7 +394,6 @@ def get_user_email(username):
         )
 
         if response.data:
-
             return response.data[0]["email"]
 
         return None
@@ -551,7 +423,6 @@ def get_user_mobile(username):
         )
 
         if response.data:
-
             return response.data[0]["mobile"]
 
         return None

@@ -184,7 +184,8 @@ def show_auth():
                     st.error("Invalid Senior Connection Code.")
                     return
 
-            success = create_user(
+            # Unpack the two values returned by our fixed create_user function!
+            success, msg = create_user(
                 full_name,
                 username,
                 password,
@@ -195,7 +196,8 @@ def show_auth():
             )
 
             if not success:
-                st.error("Username already exists.")
+                # This will now print EXACTLY what went wrong (e.g., weak password, bad email)
+                st.error(msg)
                 return
 
             if role == "Caregiver":

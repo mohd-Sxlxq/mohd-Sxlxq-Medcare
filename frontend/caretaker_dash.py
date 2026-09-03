@@ -122,17 +122,17 @@ def show_caretaker_dashboard():
 
         c1.metric(
             "❤️ BP",
-            bp if bp is not None else "--"
+            str(bp) if bp is not None else "--"
         )
 
         c2.metric(
             "🍬 Sugar",
-            sugar if sugar is not None else "--"
+            str(sugar) if sugar is not None else "--"
         )
 
         c3.metric(
             "💓 Heart",
-            hr if hr is not None else "--"
+            str(hr) if hr is not None else "--"
         )
 
         if risk == "High Risk":

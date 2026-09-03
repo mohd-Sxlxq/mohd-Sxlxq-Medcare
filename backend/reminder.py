@@ -1,4 +1,5 @@
 import pandas as pd
+from typing import cast, Any, List, Dict
 
 from backend.supabase_client import supabase
 
@@ -10,9 +11,7 @@ from backend.supabase_client import supabase
 # This function is kept so existing application code
 # calling create_reminder_table() does not break.
 
-
 def create_reminder_table():
-
     print("✅ Reminder table is managed by Supabase.")
 
 
@@ -21,10 +20,10 @@ def create_reminder_table():
 # =========================================================
 
 def save_reminder(
-    medicine,
-    start_time,
-    end_time,
-    senior
+    medicine: str,
+    start_time: str,
+    end_time: str,
+    senior: str
 ):
 
     try:
@@ -57,7 +56,7 @@ def save_reminder(
 # GET REMINDERS FOR SENIOR
 # =========================================================
 
-def get_reminders_for_senior(senior):
+def get_reminders_for_senior(senior: str):
 
     try:
 
@@ -75,7 +74,7 @@ def get_reminders_for_senior(senior):
             .execute()
         )
 
-        rows = response.data
+        rows = cast(List[Dict[str, Any]], response.data)
 
         records = []
 
@@ -102,7 +101,7 @@ def get_reminders_for_senior(senior):
 # MARK AS TAKEN
 # =========================================================
 
-def mark_taken(reminder_id):
+def mark_taken(reminder_id: int):
 
     try:
 
@@ -128,7 +127,7 @@ def mark_taken(reminder_id):
 # MARK AS NOTIFIED
 # =========================================================
 
-def mark_notified(reminder_id):
+def mark_notified(reminder_id: int):
 
     try:
 

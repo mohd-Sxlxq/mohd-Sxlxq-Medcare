@@ -1,5 +1,6 @@
 import pandas as pd
 from datetime import datetime
+from typing import cast, Any, List, Dict
 
 from backend.supabase_client import supabase
 
@@ -10,7 +11,6 @@ from backend.supabase_client import supabase
 # Table creation is handled in Supabase SQL Editor.
 # This function is kept for compatibility with the old code.
 
-
 def create_health_table():
     print("✅ Health table is managed by Supabase.")
 
@@ -19,7 +19,7 @@ def create_health_table():
 # SAVE HEALTH RECORD
 # =========================================================
 
-def save_health_record(senior, bp, sugar, hr, risk):
+def save_health_record(senior: str, bp: str, sugar: str, hr: str, risk: str):
 
     try:
 
@@ -54,7 +54,7 @@ def save_health_record(senior, bp, sugar, hr, risk):
 # GET LATEST HEALTH
 # =========================================================
 
-def get_latest_health(senior):
+def get_latest_health(senior: str):
 
     try:
 
@@ -70,9 +70,11 @@ def get_latest_health(senior):
             .execute()
         )
 
-        if response.data:
+        data = cast(List[Dict[str, Any]], response.data)
 
-            row = response.data[0]
+        if data:
+
+            row = data[0]
 
             return (
                 row["blood_pressure"],
@@ -92,7 +94,7 @@ def get_latest_health(senior):
 # LAST 7 RECORDS
 # =========================================================
 
-def get_last_7_records(senior):
+def get_last_7_records(senior: str):
 
     try:
 
@@ -109,7 +111,7 @@ def get_last_7_records(senior):
             .execute()
         )
 
-        rows = response.data
+        rows = cast(List[Dict[str, Any]], response.data)
 
         records = []
 
@@ -136,7 +138,7 @@ def get_last_7_records(senior):
 # FULL HISTORY
 # =========================================================
 
-def get_all_records(senior):
+def get_all_records(senior: str):
 
     try:
 
@@ -152,7 +154,7 @@ def get_all_records(senior):
             .execute()
         )
 
-        rows = response.data
+        rows = cast(List[Dict[str, Any]], response.data)
 
         records = []
 
@@ -179,7 +181,7 @@ def get_all_records(senior):
 # GET LATEST RISK
 # =========================================================
 
-def get_latest_risk(senior):
+def get_latest_risk(senior: str):
 
     try:
 
@@ -193,9 +195,11 @@ def get_latest_risk(senior):
             .execute()
         )
 
-        if response.data:
+        data = cast(List[Dict[str, Any]], response.data)
 
-            return response.data[0].get("risk_level")
+        if data:
+
+            return data[0].get("risk_level")
 
         return None
 

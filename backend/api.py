@@ -47,24 +47,24 @@ def submit_health(
         hr
     )
 
-    # Save Health Record
+    # Save Health Record (Convert numbers to strings for the database function)
     save_health_record(
         senior,
-        bp,
-        sugar,
-        hr,
+        str(bp),
+        str(sugar),
+        str(hr),
         risk
     )
 
-    # Send Email if High Risk
+    # Send Email if High Risk (Convert numbers to strings for the email function)
     if risk == "High Risk":
 
         try:
             send_email_alert(
                 senior,
-                bp,
-                sugar,
-                hr,
+                str(bp),
+                str(sugar),
+                str(hr),
                 risk
             )
         except Exception as e:

@@ -40,7 +40,7 @@ def show_senior_dashboard():
     )
 
     if connection_code:
-        st.code(connection_code)
+        st.code(connection_code or "")
         st.info(
             "Share this connection code with your caregiver."
         )
@@ -127,12 +127,12 @@ def show_senior_dashboard():
         else:
             risk = "Normal"
 
-        # Save directly to Supabase
+        # Save directly to Supabase (Floats converted to Strings)
         saved = save_health_record(
             st.session_state.username,
-            bp,
-            sugar,
-            hr,
+            str(bp),
+            str(sugar),
+            str(hr),
             risk,
         )
 
@@ -140,13 +140,13 @@ def show_senior_dashboard():
             if risk == "High Risk":
                 st.error("⚠️ High Risk Detected")
                 
-                # Trigger email alert directly (Cloud Fix)
+                # Trigger email alert directly (Floats converted to Strings)
                 try:
                     send_email_alert(
                         st.session_state.username,
-                        bp,
-                        sugar,
-                        hr,
+                        str(bp),
+                        str(sugar),
+                        str(hr),
                         risk
                     )
                 except Exception as e:
@@ -185,19 +185,19 @@ def show_senior_dashboard():
     with c1:
         st.metric(
             "❤️ Blood Pressure",
-            latest_bp if latest_bp is not None else "--",
+            str(latest_bp) if latest_bp is not None else "--",
         )
 
     with c2:
         st.metric(
             "🍬 Sugar Level",
-            latest_sugar if latest_sugar is not None else "--",
+            str(latest_sugar) if latest_sugar is not None else "--",
         )
 
     with c3:
         st.metric(
             "💓 Heart Rate",
-            latest_hr if latest_hr is not None else "--",
+            str(latest_hr) if latest_hr is not None else "--",
         )
 
     st.divider()

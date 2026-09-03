@@ -154,10 +154,10 @@ def show_caretaker_dashboard():
         st.divider()
 
     # =====================================================
-    # ADD MEDICATION REMINDER
+    # ADD MEDICATION REMINDER (WITH 90-DAY DURATION & TIME SLOTS)
     # =====================================================
 
-    st.subheader("💊 Add Medication Reminder")
+    st.subheader("💊 Add Medication Schedule")
 
     selected_senior = st.selectbox(
         "Select Senior",
@@ -170,45 +170,55 @@ def show_caretaker_dashboard():
         key="medicine"
     )
 
+    # Generate hour and half-hour time slots (e.g., 08:00, 08:30, 09:00...)
+    time_slots = []
+    for h in range(24):
+        time_slots.append(f"{h:02d}:00")
+        time_slots.append(f"{h:02d}:30")
+
     col1, col2 = st.columns(2)
 
     with col1:
-
-        start_time = st.time_input(
-            "Start Time",
-            key="start_time"
-        )
+        start_slot = st.selectbox("Start Time", time_slots, index=16, key="start_slot") # Default 08:00
 
     with col2:
+        end_slot = st.selectbox("End Time", time_slots, index=17, key="end_slot") # Default 08:30
 
-        end_time = st.time_input(
-            "End Time",
-            key="end_time"
-        )
+    duration_days = st.slider(
+        "Duration (Days - Auto-repeats daily up to 90 days)",
+        min_value=1,
+        max_value=90,
+        value=7,
+        key="duration_days"
+    )
 
     if st.button(
-        "Add Reminder",
+        "Save Reminder Schedule",
+        type="primary",
         key="add_reminder"
     ):
 
-        if medicine.strip() == "":
+        if not medicine.strip():
 
-            st.warning(
-                "Enter medicine name."
-            )
+            st.warning("Please enter a medicine name.")
 
         else:
 
-            save_reminder(
-                medicine,
-                str(start_time),
-                str(end_time),
-                selected_senior
+            success = save_reminder(
+                medicine=medicine.strip(),
+                start_time=f"{start_slot}:00",
+                end_time=f"{end_slot}:00",
+                senior=selected_senior,
+                duration_days=duration_days
             )
 
-            st.success(
-                "Reminder Added Successfully"
-            )
+            if success:
+                st.success(
+                    f"✅ Successfully scheduled {medicine.strip()} for {duration_days} days!"
+                )
+                st.rerun()
+            else:
+                st.error("❌ Failed to save reminder to database.")
 
     st.divider()
 

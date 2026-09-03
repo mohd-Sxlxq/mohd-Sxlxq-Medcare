@@ -23,11 +23,11 @@ def send_email(receiver, subject, body):
 
     if not SENDER or not PASSWORD:
         print("Email sender credentials not configured.")
-        return
+        return False
 
     if not receiver:
         print("No receiver email.")
-        return
+        return False
 
     msg = MIMEText(body)
 
@@ -48,9 +48,11 @@ def send_email(receiver, subject, body):
         server.quit()
 
         print(f"✅ Email sent to {receiver}")
+        return True
 
     except Exception as e:
         print("Email Error:", e)
+        return False
 
 
 # ---------------- HIGH RISK ALERT ----------------
@@ -67,7 +69,9 @@ def send_email_alert(
 
     if not caregivers:
         print("No caregivers connected.")
-        return
+        return False
+        
+    success = False
 
     subject = "🚨 MedCare High Health Risk Alert"
 
@@ -92,14 +96,13 @@ MedCare Emergency Monitoring System
 
     for caregiver in caregivers:
 
-        receiver =caregiver[2]
+        receiver = caregiver[2]
 
         if receiver:
-            send_email(
-                receiver,
-                subject,
-                body
-            )
+            if send_email(receiver, subject, body):
+                success = True
+                
+    return success
 
 
 # ---------------- MISSED MEDICATION ALERT ----------------
@@ -113,7 +116,9 @@ def send_missed_med_alert(
 
     if not caregivers:
         print("No caregivers connected.")
-        return
+        return False
+        
+    success = False
 
     subject = "⚠ MedCare Medication Reminder Missed"
 
@@ -134,11 +139,10 @@ MedCare Emergency Monitoring System
 
     for caregiver in caregivers:
 
-        receiver =caregiver[2]
+        receiver = caregiver[2]
 
         if receiver:
-            send_email(
-                receiver,
-                subject,
-                body
-            )
+            if send_email(receiver, subject, body):
+                success = True
+                
+    return success

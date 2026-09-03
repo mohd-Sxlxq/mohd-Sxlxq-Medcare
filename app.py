@@ -22,18 +22,19 @@ if "logged_in" not in st.session_state:
 
 
 # =========================================================
-# AUTHENTICATION PAGE (LOGIN / SIGNUP)
+# AUTHENTICATION PAGE (CLASSIC LAYOUT)
 # =========================================================
 
 def show_auth_page():
     st.title("🩺 MedCare System")
     st.write("Your intelligent senior health and medication monitoring companion.")
 
-    tab_login, tab_signup = st.tabs(["🔑 Login", "📝 Create Account"])
+    auth_mode = st.radio("Choose Action", ["Login", "Create Account"], horizontal=True)
 
-    # ---------------- LOGIN TAB ----------------
-    with tab_login:
-        st.subheader("Login to your account")
+    st.divider()
+
+    if auth_mode == "Login":
+        st.subheader("🔑 Login to your account")
 
         login_username = st.text_input("Username", key="login_user")
         login_password = st.text_input("Password", type="password", key="login_pass")
@@ -53,9 +54,8 @@ def show_auth_page():
                 else:
                     st.error("❌ Invalid username or password.")
 
-    # ---------------- SIGNUP TAB ----------------
-    with tab_signup:
-        st.subheader("Create a new MedCare account")
+    else:
+        st.subheader("📝 Create a new MedCare account")
 
         new_name = st.text_input("Full Name", key="signup_name")
         new_username = st.text_input("Choose Username", key="signup_user")
@@ -80,7 +80,7 @@ def show_auth_page():
                 )
 
                 if success:
-                    st.success("✅ Account created successfully! Please switch to the Login tab.")
+                    st.success("✅ Account created successfully! Switch to 'Login' above to sign in.")
                 else:
                     st.error(f"❌ {message}")
 

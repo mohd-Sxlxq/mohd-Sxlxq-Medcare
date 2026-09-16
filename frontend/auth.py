@@ -201,11 +201,17 @@ def show_auth():
                 return
 
             if role == "Caregiver":
-
                 connect_caregiver(
                     username,
                     connection_code
                 )
 
-            st.success("Account created successfully.")
-            st.info("Please login to continue.")
+            # ==========================================
+            # AUTO-LOGIN UPON SUCCESSFUL REGISTRATION
+            # ==========================================
+            st.session_state.logged_in = True
+            st.session_state.username = username.lower()
+            st.session_state.role = role
+            
+            st.success("Account created successfully! Redirecting to dashboard...")
+            st.rerun()

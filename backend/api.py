@@ -1,9 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from backend.storage import save_health_record
 from backend.risk import calculate_risk
 from backend.mail import send_email_alert
+
+
+# =========================================================
+# PYDANTIC DATA MODEL (Fixes Pylance red lines)
+# =========================================================
+class HealthPayload(BaseModel):
+    senior: str
+    bp: float
+    sugar: float
+    hr: float
+
 
 app = FastAPI(
     title="MedCare API",
@@ -24,7 +36,6 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-
     return {
         "message": "MedCare API is Running"
     }
@@ -33,38 +44,32 @@ def home():
 # ---------------- HEALTH SUBMISSION ----------------
 
 @app.post("/submit-health")
-def submit_health(
-    senior: str,
-    bp: float,
-    sugar: float,
-    hr: float
-):
+def submit_health(payload: HealthPayload):
 
-    # Calculate Risk
+    # Calculate Risk using the payload data
     risk = calculate_risk(
-        bp,
-        sugar,
-        hr
+        payload.bp,
+        payload.sugar,
+        payload.hr
     )
 
-    # Save Health Record (Convert numbers to strings for the database function)
+    # Save Health Record (Explicit string conversion per your setup)
     save_health_record(
-        senior,
-        str(bp),
-        str(sugar),
-        str(hr),
+        payload.senior,
+        str(payload.bp),
+        str(payload.sugar),
+        str(payload.hr),
         risk
     )
 
-    # Send Email if High Risk (Convert numbers to strings for the email function)
+    # Send Email if High Risk
     if risk == "High Risk":
-
         try:
             send_email_alert(
-                senior,
-                str(bp),
-                str(sugar),
-                str(hr),
+                payload.senior,
+                str(payload.bp),
+                str(payload.sugar),
+                str(payload.hr),
                 risk
             )
         except Exception as e:
@@ -80,7 +85,6 @@ def submit_health(
 
 @app.get("/health")
 def health():
-
     return {
         "status": "online"
     }

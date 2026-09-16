@@ -122,17 +122,17 @@ def show_caretaker_dashboard():
 
         c1.metric(
             "❤️ BP",
-            str(bp) if bp is not None else "--"
+            bp if bp is not None else "--"
         )
 
         c2.metric(
             "🍬 Sugar",
-            str(sugar) if sugar is not None else "--"
+            sugar if sugar is not None else "--"
         )
 
         c3.metric(
             "💓 Heart",
-            str(hr) if hr is not None else "--"
+            hr if hr is not None else "--"
         )
 
         if risk == "High Risk":
@@ -154,10 +154,10 @@ def show_caretaker_dashboard():
         st.divider()
 
     # =====================================================
-    # ADD MEDICATION REMINDER (WITH 90-DAY DURATION & TIME SLOTS)
+    # ADD MEDICATION REMINDER
     # =====================================================
 
-    st.subheader("💊 Add Medication Schedule")
+    st.subheader("💊 Add Medication Reminder")
 
     selected_senior = st.selectbox(
         "Select Senior",
@@ -165,60 +165,50 @@ def show_caretaker_dashboard():
         key="selected_senior"
     )
 
-    medicine = st.text_input(
-        "Medicine Name",
-        key="medicine"
-    )
+    # Wrap the inputs in a form to prevent button spamming
+    with st.form("add_reminder_form", clear_on_submit=True):
+        
+        medicine = st.text_input(
+            "Medicine Name"
+        )
 
-    # Generate hour and half-hour time slots (e.g., 08:00, 08:30, 09:00...)
-    time_slots = []
-    for h in range(24):
-        time_slots.append(f"{h:02d}:00")
-        time_slots.append(f"{h:02d}:30")
+        col1, col2 = st.columns(2)
 
-    col1, col2 = st.columns(2)
+        with col1:
 
-    with col1:
-        start_slot = st.selectbox("Start Time", time_slots, index=16, key="start_slot") # Default 08:00
-
-    with col2:
-        end_slot = st.selectbox("End Time", time_slots, index=17, key="end_slot") # Default 08:30
-
-    duration_days = st.slider(
-        "Duration (Days - Auto-repeats daily up to 90 days)",
-        min_value=1,
-        max_value=90,
-        value=7,
-        key="duration_days"
-    )
-
-    if st.button(
-        "Save Reminder Schedule",
-        type="primary",
-        key="add_reminder"
-    ):
-
-        if not medicine.strip():
-
-            st.warning("Please enter a medicine name.")
-
-        else:
-
-            success = save_reminder(
-                medicine=medicine.strip(),
-                start_time=f"{start_slot}:00",
-                end_time=f"{end_slot}:00",
-                senior=selected_senior,
-                duration_days=duration_days
+            start_time = st.time_input(
+                "Start Time"
             )
 
-            if success:
-                st.success(
-                    f"✅ Successfully scheduled {medicine.strip()} for {duration_days} days!"
+        with col2:
+
+            end_time = st.time_input(
+                "End Time"
+            )
+
+        # Using form_submit_button instead of regular button
+        submitted = st.form_submit_button("Add Reminder")
+
+        if submitted:
+
+            if medicine.strip() == "":
+
+                st.warning(
+                    "Enter medicine name."
                 )
-                st.rerun()
+
             else:
-                st.error("❌ Failed to save reminder to database.")
+
+                save_reminder(
+                    medicine,
+                    str(start_time),
+                    str(end_time),
+                    selected_senior
+                )
+
+                st.success(
+                    f"✅ '{medicine}' Reminder Added Successfully!"
+                )
 
     st.divider()
 

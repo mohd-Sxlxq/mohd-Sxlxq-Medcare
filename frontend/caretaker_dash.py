@@ -1,11 +1,7 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 
-from backend.user import (
-    get_my_seniors,
-    verify_connection_code,
-    connect_caregiver_to_senior
-)
+from backend.user import get_my_seniors
 
 from backend.storage import (
     get_last_7_records,
@@ -13,7 +9,10 @@ from backend.storage import (
     get_latest_risk
 )
 
-from backend.reminder import save_reminder
+from backend.reminder import (
+    save_reminder,
+    get_reminders_for_senior
+)
 
 
 def show_caretaker_dashboard():
@@ -23,83 +22,19 @@ def show_caretaker_dashboard():
 
     caretaker = st.session_state.username
 
-    # =====================================================
-    # CONNECT TO SENIOR
-    # =====================================================
-
-    st.subheader("🔗 Connect to a Senior")
-
-    st.write(
-        "Ask the Senior for their MedCare connection code "
-        "and enter it below."
-    )
-
-    connection_code = st.text_input(
-        "Senior Connection Code",
-        placeholder="MC-SNR-XXXXXXXX",
-        key="senior_connection_code"
-    )
-
-    if st.button(
-        "Connect Senior",
-        key="connect_senior"
-    ):
-
-        if not connection_code.strip():
-
-            st.warning("Please enter the Senior connection code.")
-
-        else:
-
-            connection_code = connection_code.strip().upper()
-
-            # Verify code first
-            code_valid = verify_connection_code(
-                connection_code
-            )
-
-            if not code_valid:
-
-                st.error(
-                    "❌ Invalid Senior connection code."
-                )
-
-            else:
-
-                # Connect current caregiver
-                result = connect_caregiver_to_senior(
-                    connection_code,
-                    caretaker
-                )
-
-                if result:
-
-                    st.success(
-                        "✅ Senior connected successfully!"
-                    )
-
-                    st.rerun()
-
-                else:
-
-                    st.error(
-                        "❌ Unable to connect Senior."
-                    )
-
-    st.divider()
+    seniors = get_my_seniors(caretaker)
 
     # =====================================================
     # CONNECTED SENIORS
     # =====================================================
-
-    seniors = get_my_seniors(caretaker)
 
     st.subheader("👥 Connected Seniors")
 
     if not seniors:
 
         st.info(
-            "No seniors connected yet."
+            "No seniors connected yet. Ensure you entered a "
+            "valid Senior Connection Code during registration."
         )
 
         return
@@ -158,6 +93,7 @@ def show_caretaker_dashboard():
     # =====================================================
 
     st.subheader("💊 Add Medication Reminder")
+    st.write("Schedule medicines individually with a custom duration.")
 
     selected_senior = st.selectbox(
         "Select Senior",
@@ -165,50 +101,86 @@ def show_caretaker_dashboard():
         key="selected_senior"
     )
 
-    # Wrap the inputs in a form to prevent button spamming
-    with st.form("add_reminder_form", clear_on_submit=True):
-        
-        medicine = st.text_input(
-            "Medicine Name"
-        )
+    medicine = st.text_input(
+        "Medicine Name",
+        placeholder="e.g., Aspirin",
+        key="med_name_input"
+    )
 
-        col1, col2 = st.columns(2)
+    # Easy Slider for 1 to 90 days selection
+    duration = st.slider(
+        "🗓️ Duration (Days)",
+        min_value=1,
+        max_value=90,
+        value=30,
+        help="Slide to select how many days this medication plan should last."
+    )
 
-        with col1:
+    # Generate time options in 30-minute intervals
+    time_labels = []
+    time_values = []
+    for h in range(24):
+        for m in (0, 30):
+            ampm = "AM" if h < 12 else "PM"
+            dh = 12 if h == 0 else (h - 12 if h > 12 else h)
+            time_labels.append(f"{dh}:{m:02d} {ampm}")
+            time_values.append(f"{h:02d}:{m:02d}:00")
 
-            start_time = st.time_input(
-                "Start Time"
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Default Start Time: 8:00 AM (Index 16)
+        start_label = st.selectbox("Start Time", time_labels, index=16)
+        start_idx = time_labels.index(start_label)
+
+    with col2:
+        # End Time dynamically defaults to +90 minutes (3 steps of 30 mins)
+        default_end_idx = (start_idx + 3) % 48
+        end_label = st.selectbox("End Time", time_labels, index=default_end_idx)
+
+    if st.button("Save Medication", type="primary", use_container_width=True):
+
+        if not medicine.strip():
+            st.warning("Please enter a medicine name.")
+        else:
+            start_val = time_values[time_labels.index(start_label)]
+            end_val = time_values[time_labels.index(end_label)]
+
+            saved = save_reminder(
+                medicine.strip(),
+                start_val,
+                end_val,
+                selected_senior
             )
-
-        with col2:
-
-            end_time = st.time_input(
-                "End Time"
-            )
-
-        # Using form_submit_button instead of regular button
-        submitted = st.form_submit_button("Add Reminder")
-
-        if submitted:
-
-            if medicine.strip() == "":
-
-                st.warning(
-                    "Enter medicine name."
-                )
-
+            
+            if saved:
+                st.success(f"✅ '{medicine.strip()}' scheduled for {duration} days from {start_label} to {end_label}!")
             else:
+                st.error("❌ Failed to save medication.")
+                
+    st.divider()
 
-                save_reminder(
-                    medicine,
-                    str(start_time),
-                    str(end_time),
-                    selected_senior
-                )
-
-                st.success(
-                    f"✅ '{medicine}' Reminder Added Successfully!"
-                )
+    # =====================================================
+    # MEDICATION TRACKER
+    # =====================================================
+    
+    st.subheader("📋 Medication Status")
+    
+    track_senior = st.selectbox(
+        "Select Senior to View Medications",
+        seniors,
+        key="track_senior"
+    )
+    
+    reminders_df = get_reminders_for_senior(track_senior)
+    
+    if reminders_df.empty:
+        st.info(f"No medications scheduled for {track_senior}.")
+    else:
+        st.dataframe(
+            reminders_df[["Medicine", "Start", "End", "Taken"]],
+            use_container_width=True
+        )
 
     st.divider()
 

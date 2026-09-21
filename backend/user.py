@@ -1,7 +1,6 @@
 import hashlib
 import random
 import string
-from typing import cast, Any, List, Dict
 
 from backend.supabase_client import supabase
 
@@ -60,23 +59,24 @@ def create_user(
     email: str,
     mobile: str,
     address: str = ""
-):
+) -> tuple[bool, str]:
 
     username = username.strip().lower()
-    real_email = email.strip().lower()
+    email = email.strip().lower()
     role = role.strip().title()
 
     try:
+        # Check if username already exists in our table
         response = (
             supabase
             .table("users")
-            .select("username")
+            .select("id")
             .eq("username", username)
             .execute()
         )
 
         if response.data:
-            return False, "Username already exists."
+            return False, "This username is already taken. Please choose another."
 
     except Exception as e:
         print("❌ Username check error:", e)
@@ -90,44 +90,25 @@ def create_user(
         if connection_code is None:
             return False, "Failed to generate connection code."
 
-    system_auth_email = f"{username}@medcare-system.local"
-
     try:
-        try:
-            auth_response = supabase.auth.sign_up({
-                "email": system_auth_email,
-                "password": password
-            }) # type: ignore
-            
-            if not auth_response.user:
-                return False, "Supabase Auth registration failed."
-                
-            auth_id = str(auth_response.user.id) # type: ignore
-            
-        except Exception as auth_e:
-            auth_error_msg = str(auth_e).lower()
-            if "already registered" in auth_error_msg or "already exists" in auth_error_msg:
-                try:
-                    recover_response = supabase.auth.sign_in_with_password({
-                        "email": system_auth_email,
-                        "password": password
-                    }) # type: ignore
-                    
-                    if recover_response.user:
-                        auth_id = str(recover_response.user.id) # type: ignore
-                    else:
-                        raise Exception("Recovery failed")
-                except Exception:
-                    return False, "This username is permanently locked by a previous password mismatch. Please choose a new username."
-            else:
-                raise auth_e
+        # Create Supabase Auth account
+        auth_response = supabase.auth.sign_up({
+            "email": email,
+            "password": password
+        })
 
+        if not auth_response.user:
+            return False, "Supabase Auth registration failed."
+
+        auth_id = str(auth_response.user.id)
+
+        # Create MedCare profile
         supabase.table("users").insert({
             "full_name": full_name.strip(),
             "username": username,
             "password": hash_password(password),
             "role": role,
-            "email": real_email,
+            "email": email,
             "mobile": mobile.strip(),
             "address": address.strip(),
             "connection_code": connection_code,
@@ -141,63 +122,65 @@ def create_user(
         error_msg = str(e)
         print("❌ Create user error:", error_msg)
         
+        # Translate database errors into human-readable messages
+        if "users_username_key" in error_msg:
+            return False, "This username is already taken. Please choose another."
+        if "users_email_key" in error_msg or "already registered" in error_msg.lower():
+            return False, "This email address is already registered."
         if "characters" in error_msg.lower() or "password" in error_msg.lower():
             return False, "Password must be at least 6 characters long."
             
-        return False, f"Registration failed: {error_msg}"
+        return False, "Registration failed. Please check your details and try again."
 
 
 # =========================================================
 # LOGIN
 # =========================================================
 
-def authenticate_user(username: str, password: str):
+def authenticate_user(username: str, password: str) -> str | None:
 
     username = username.strip().lower()
-    system_auth_email = f"{username}@medcare-system.local"
 
     try:
-        response = (
-            supabase
-            .table("users")
-            .select("*")
-            .eq("username", username)
-            .execute()
-        )
 
-        data = cast(List[Dict[str, Any]], response.data)
+        response = supabase.rpc(
+            "get_login_user",
+            {
+                "p_username": username
+            }
+        ).execute()
 
-        if not data:
+        if not response.data:
+
             print("❌ User not found.")
             return None
 
-        user = data[0]
-        stored_real_email = str(user.get("email", ""))
+        # Cast to dict and tell the linter to ignore this specific line
+        user_data = dict(response.data[0])  # type: ignore
 
-        try:
-            auth_response = supabase.auth.sign_in_with_password({
-                "email": system_auth_email,
-                "password": password
-            }) # type: ignore
-        except Exception:
-            auth_response = supabase.auth.sign_in_with_password({
-                "email": stored_real_email,
-                "password": password
-            }) # type: ignore
+        email = str(user_data.get("email"))
+
+        # Pass the credentials as a variable and ignore the strict type check
+        credentials = {"email": email, "password": password}
+        auth_response = supabase.auth.sign_in_with_password(credentials)  # type: ignore
 
         if not auth_response.user:
+            
             print("❌ Supabase login failed.")
             return None
 
-        if user.get("auth_id"):
-            if str(auth_response.user.id) != str(user["auth_id"]): # type: ignore
+        # Verify Auth ID
+        stored_auth_id = user_data.get("auth_id")  # type: ignore
+        if stored_auth_id:
+            
+            if str(auth_response.user.id) != str(stored_auth_id):  # type: ignore
+                
                 print("❌ Authentication identity mismatch.")
                 return None
 
         print("✅ Supabase session created.")
-        return str(user["role"])
-
     except Exception as e:
+
         print("❌ Authentication error:", e)
         return None
 
@@ -206,11 +189,12 @@ def authenticate_user(username: str, password: str):
 # GET USER
 # =========================================================
 
-def get_user(username: str):
+def get_user(username: str) -> dict | None:
 
     username = username.strip().lower()
 
     try:
+
         response = (
             supabase
             .table("users")
@@ -219,14 +203,14 @@ def get_user(username: str):
             .execute()
         )
 
-        data = cast(List[Dict[str, Any]], response.data)
+        if response.data:
 
-        if data:
-            return data[0]
+            return response.data[0]  # type: ignore
 
         return None
 
     except Exception as e:
+
         print("❌ Get user error:", e)
         return None
 
@@ -235,11 +219,12 @@ def get_user(username: str):
 # GET CONNECTION CODE
 # =========================================================
 
-def get_connection_code(username: str):
+def get_connection_code(username: str) -> str | None:
 
     username = username.strip().lower()
 
     try:
+
         response = (
             supabase
             .table("users")
@@ -248,14 +233,14 @@ def get_connection_code(username: str):
             .execute()
         )
 
-        data = cast(List[Dict[str, Any]], response.data)
+        if response.data:
 
-        if data:
-            return str(data[0]["connection_code"])
+            return response.data[0]["connection_code"]  # type: ignore
 
         return None
 
     except Exception as e:
+
         print("❌ Connection code error:", e)
         return None
 
@@ -264,14 +249,17 @@ def get_connection_code(username: str):
 # VERIFY CONNECTION CODE
 # =========================================================
 
-def verify_connection_code(connection_code: str):
+def verify_connection_code(connection_code: str) -> bool:
 
     if not connection_code:
+
+        print("❌ Connection code is empty.")
         return False
 
     connection_code = connection_code.strip().upper()
 
     try:
+
         response = (
             supabase
             .table("users")
@@ -284,6 +272,7 @@ def verify_connection_code(connection_code: str):
         return bool(response.data)
 
     except Exception as e:
+
         print("❌ Verify connection code error:", e)
         return False
 
@@ -295,15 +284,27 @@ def verify_connection_code(connection_code: str):
 def connect_caregiver_to_senior(
     connection_code: str,
     caregiver: str
-):
+) -> bool:
 
-    if not connection_code or not caregiver:
+    if not connection_code:
+
+        print("❌ Connection code is empty.")
+        return False
+
+    if not caregiver:
+
+        print("❌ Caregiver username is empty.")
         return False
 
     connection_code = connection_code.strip().upper()
     caregiver = caregiver.strip().lower()
 
     try:
+
+        # -------------------------------------------------
+        # Find Senior using SECURITY DEFINER RPC
+        # -------------------------------------------------
+
         response = supabase.rpc(
             "get_senior_by_connection_code",
             {
@@ -311,12 +312,16 @@ def connect_caregiver_to_senior(
             }
         ).execute()
 
-        data = cast(List[Dict[str, Any]], response.data)
+        if not response.data:
 
-        if not data:
+            print("❌ Senior not found.")
             return False
 
-        senior_username = str(data[0]["username"])
+        senior_username = response.data[0]["username"]  # type: ignore
+
+        # -------------------------------------------------
+        # Check caregiver
+        # -------------------------------------------------
 
         caregiver_response = (
             supabase
@@ -328,7 +333,13 @@ def connect_caregiver_to_senior(
         )
 
         if not caregiver_response.data:
+
+            print("❌ Caregiver not found.")
             return False
+
+        # -------------------------------------------------
+        # Check existing connection
+        # -------------------------------------------------
 
         existing = (
             supabase
@@ -340,24 +351,41 @@ def connect_caregiver_to_senior(
         )
 
         if existing.data:
+
+            print("✅ Caregiver is already connected to this Senior.")
             return True
 
+        # -------------------------------------------------
+        # Create connection
+        # -------------------------------------------------
+
         supabase.table("connections").insert({
+
             "senior_username": senior_username,
             "caregiver_username": caregiver
+
         }).execute()
+
+        print("✅ Caregiver connected to Senior.")
 
         return True
 
     except Exception as e:
+
         error_message = str(e).lower()
+
         if (
             "duplicate" in error_message
             or "already exists" in error_message
             or "unique constraint" in error_message
             or "23505" in error_message
         ):
+
+            print("✅ Caregiver is already connected to this Senior.")
             return True
+
+        print("❌ Caregiver connection error:", repr(e))
+
         return False
 
 
@@ -368,7 +396,7 @@ def connect_caregiver_to_senior(
 def connect_caregiver(
     caregiver_username: str,
     connection_code: str
-):
+) -> bool:
 
     return connect_caregiver_to_senior(
         connection_code,
@@ -380,11 +408,12 @@ def connect_caregiver(
 # GET MY SENIORS
 # =========================================================
 
-def get_my_seniors(caregiver: str):
+def get_my_seniors(caregiver: str) -> list[str]:
 
     caregiver = caregiver.strip().lower()
 
     try:
+
         response = (
             supabase
             .table("connections")
@@ -393,11 +422,17 @@ def get_my_seniors(caregiver: str):
             .order("senior_username")
             .execute()
         )
-        
-        data = cast(List[Dict[str, Any]], response.data)
-        return [str(row["senior_username"]) for row in data]
+
+        return [
+
+            str(row["senior_username"])
+
+            for row in response.data  # type: ignore
+
+        ]
 
     except Exception as e:
+
         print("❌ Get seniors error:", e)
         return []
 
@@ -406,11 +441,12 @@ def get_my_seniors(caregiver: str):
 # GET CONNECTED CAREGIVERS
 # =========================================================
 
-def get_connected_caregivers(senior: str):
+def get_connected_caregivers(senior: str) -> list[tuple[str, str, str, str]]:
 
     senior = senior.strip().lower()
 
     try:
+
         response = (
             supabase
             .table("connections")
@@ -419,35 +455,45 @@ def get_connected_caregivers(senior: str):
             .order("caregiver_username")
             .execute()
         )
-        
-        data = cast(List[Dict[str, Any]], response.data)
+
         results = []
 
-        for connection in data:
-            caregiver_username = str(connection["caregiver_username"])
+        for connection in response.data:  # type: ignore
+
+            caregiver_username = connection[
+                "caregiver_username"
+            ]
 
             caregiver_response = (
                 supabase
                 .table("users")
-                .select("full_name,username,email,mobile")
-                .eq("username", caregiver_username)
+                .select(
+                    "full_name,username,email,mobile"
+                )
+                .eq(
+                    "username",
+                    caregiver_username
+                )
                 .execute()
             )
-            
-            cg_data = cast(List[Dict[str, Any]], caregiver_response.data)
 
-            if cg_data:
-                cg = cg_data[0]
+            if caregiver_response.data:
+
+                caregiver = caregiver_response.data[0]  # type: ignore
+
                 results.append((
-                    str(cg["full_name"]),
-                    str(cg["username"]),
-                    str(cg["email"]),
-                    str(cg["mobile"])
+
+                    caregiver["full_name"],
+                    caregiver["username"],
+                    caregiver["email"],
+                    caregiver["mobile"]
+
                 ))
 
         return results
 
     except Exception as e:
+
         print("❌ Get caregivers error:", e)
         return []
 
@@ -456,11 +502,12 @@ def get_connected_caregivers(senior: str):
 # GET USER EMAIL
 # =========================================================
 
-def get_user_email(username: str):
+def get_user_email(username: str) -> str | None:
 
     username = username.strip().lower()
 
     try:
+
         response = (
             supabase
             .table("users")
@@ -468,15 +515,15 @@ def get_user_email(username: str):
             .eq("username", username)
             .execute()
         )
-        
-        data = cast(List[Dict[str, Any]], response.data)
 
-        if data:
-            return str(data[0]["email"])
+        if response.data:
+
+            return response.data[0]["email"]  # type: ignore
 
         return None
 
     except Exception as e:
+
         print("❌ Get email error:", e)
         return None
 
@@ -485,11 +532,12 @@ def get_user_email(username: str):
 # GET USER MOBILE
 # =========================================================
 
-def get_user_mobile(username: str):
+def get_user_mobile(username: str) -> str | None:
 
     username = username.strip().lower()
 
     try:
+
         response = (
             supabase
             .table("users")
@@ -497,14 +545,14 @@ def get_user_mobile(username: str):
             .eq("username", username)
             .execute()
         )
-        
-        data = cast(List[Dict[str, Any]], response.data)
 
-        if data:
-            return str(data[0]["mobile"])
+        if response.data:
+
+            return response.data[0]["mobile"]  # type: ignore
 
         return None
 
     except Exception as e:
+
         print("❌ Get mobile error:", e)
         return None

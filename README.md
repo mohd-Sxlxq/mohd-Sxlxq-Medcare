@@ -2,19 +2,19 @@
 
 ## 📌 Project Overview
 
-**MedCare** is a smart healthcare assistance platform designed to help senior citizens manage their daily healthcare activities while keeping caregivers connected and informed.
+**MedCare** is a cloud-connected, smart healthcare assistance platform designed to help senior citizens manage their daily healthcare activities while keeping caregivers connected and informed.
 
-The system focuses on medication reminders, health monitoring, caregiver connection, emergency assistance, and multilingual support to improve the safety and independence of elderly users.
+The system focuses on medication reminders, real-time health monitoring, caregiver connection, emergency assistance, and data visualization to improve the safety and independence of elderly users.
 
 ---
 
 # 🎯 Objectives
 
 * Help senior citizens remember their medications on time.
-* Allow caregivers to monitor seniors remotely.
-* Provide emergency assistance during critical situations.
+* Allow caregivers to remotely monitor seniors and manage their medication schedules.
+* Provide dynamic visual health trends (Blood Pressure, Sugar Level, Heart Rate).
 * Reduce dependency on manual healthcare tracking.
-* Provide an easy-to-use interface for elderly users.
+* Provide an easy-to-use, accessible interface for elderly users.
 
 ---
 
@@ -22,224 +22,97 @@ The system focuses on medication reminders, health monitoring, caregiver connect
 
 ## 👴 Senior Citizen Module
 
-### Registration
-
-Senior users can create an account with:
-
-* Full Name
-* Email Address
-* Mobile Number
-* Permanent Address
-* Password
+### Registration & Connection
+* Secure account creation (Full Name, Email, Mobile, Address, Password).
+* Generates a unique, secure Connection Code to share with caregivers.
 
 ### Medication Management
-
-* Add medicines
-* Set medication schedules
-* Receive reminders
-* Track missed medications
+* View daily medication schedules.
+* Mark medications as "Taken" with a single click.
+* Automated tracking of missed medications.
 
 ### Health Monitoring
-
-* Store health information
-* Analyze health conditions
-* Generate risk alerts
-
-### Emergency Support
-
-* SOS emergency feature
-* Share location during emergency (Android app)
-* Send emergency details to caregiver
+* Input daily health metrics (Blood Pressure, Sugar Levels, Heart Rate).
+* Automated risk calculation (Normal, Warning, High Risk).
+* Direct saving to the cloud database.
 
 ---
 
-# 👨‍👩‍👧 Caregiver Module
+# 👨‍⚕️ Caregiver Module
 
-Caregivers can:
+Caregivers can remotely manage and monitor their connected seniors:
 
-* Create their own account
-* Connect with seniors using a secure connection code
-* Receive alerts
-* Monitor medication status
-* View health updates
+* **Secure Connection:** Link with multiple seniors using their unique Connection Codes.
+* **Medication CRUD Operations:** Create, Read, Update, and Delete medication schedules dynamically for each senior.
+* **Health Trends Visualization:** View automated line charts (powered by Matplotlib & Pandas) tracking the senior's 7-day health history.
+* **Instant Alerts:** Receive notifications and view high-risk health submissions in real-time.
 
 ---
 
 # 🔐 Senior-Caregiver Connection System
 
-MedCare uses a secure connection code system.
+MedCare uses a secure connection code system ensuring privacy and ease of use.
 
 Workflow:
-
-1. Senior receives a permanent connection code.
-2. Senior shares the code with the caregiver.
-3. Caregiver enters the code to connect.
-4. Both accounts become linked.
+1. Senior receives a permanent connection code upon registration.
+2. Senior shares the code with their caregiver.
+3. Caregiver enters the code into their dashboard to connect.
+4. Both accounts become securely linked in the database.
 
 Benefits:
-
-* No admin approval required.
-* Supports multiple users.
-* Maintains user privacy.
-* Same code can be reused for web access.
+* No manual admin approval required.
+* Supports one caregiver monitoring multiple seniors.
+* Maintains strict user privacy (caregivers only see data for connected seniors).
 
 ---
 
 # 📧 Notification System
 
-MedCare supports:
+MedCare currently supports **Automated Email Notifications** via SMTP:
+* Missed medication alerts sent directly to the caregiver.
+* High-risk health metric alerts (BP, Sugar, HR spikes).
 
-## Email Notifications
-
-Using SMTP:
-
-* Missed medication alerts
-* Health risk alerts
-* Emergency notifications
-
-## Future Mobile Notifications
-
-Android app support will include:
-
-* Push notifications
-* SMS support
-* Emergency alerts
-
----
-
-# 🌐 Language Support
-
-MedCare supports:
-
-* English
-* Kannada (ಕನ್ನಡ)
-
-The system is designed for easy addition of more languages in the future.
-
----
-
-# 📍 Location System
-
-## Website
-
-Stores:
-
-* Permanent address
-* Emergency contact information
-
-## Android Application
-
-Provides:
-
-* Live GPS location
-* Emergency location sharing
-* Ambulance assistance support
-
----
-
-# 🚑 Emergency Assistance (Future)
-
-Planned integration with an AI receptionist system.
-
-Emergency flow:
-
-```
-Missed medication detection
-
-        ↓
-
-Caregiver notification
-
-        ↓
-
-Emergency confirmation
-
-        ↓
-
-AI receptionist connection
-
-        ↓
-
-Ambulance assistance
-```
+*(Future updates will include Android push notifications and SMS support).*
 
 ---
 
 # 🛠️ Technology Stack
 
-## Frontend
+## Frontend (User Interface)
+* **Streamlit:** Core framework for the interactive web dashboards.
+* **Pandas:** Data manipulation and tabular history displays.
+* **Matplotlib:** Graphical visualization for health trends.
 
-* Streamlit
-* HTML/CSS
-* Bootstrap
+## Backend (Server & API)
+* **Python:** Core backend logic.
+* **FastAPI:** API routing for external system integration.
 
-## Backend
-
-* FastAPI
-
-## Database
-
-* SQLite
-
-## Authentication
-
-* Secure login system
-* Role-based access
-
-## Notifications
-
-* SMTP Email Service
-* Future SMS Gateway
-* Mobile Push Notifications
+## Database & Cloud
+* **Supabase (PostgreSQL):** Cloud database replacing local SQLite for real-time, secure data storage.
 
 ---
 
 # 📂 Project Structure
 
-```
+```text
 MedCare/
-
 │
 ├── backend/
-│   ├── main.py
-│   ├── database.py
-│   ├── auth.py
-│   ├── medication.py
-│   ├── notification.py
-│   └── email_service.py
+│   ├── api.py                 # FastAPI endpoints
+│   ├── supabase_client.py     # Cloud database connection
+│   ├── auth.py                # Authentication logic
+│   ├── user.py                # User and connection management
+│   ├── risk.py                # Health risk calculation logic
+│   ├── storage.py             # Health record CRUD
+│   ├── reminder.py            # Medication CRUD operations
+│   └── mail.py                # SMTP email alert system
 │
 ├── frontend/
-│   ├── login.py
-│   ├── signup.py
-│   ├── senior_dashboard.py
-│   └── caregiver_dashboard.py
+│   ├── auth.py                # Login/Signup UI
+│   ├── senior_dash.py         # Senior Citizen interface
+│   └── caretaker_dash.py      # Caregiver interface (Charts & Management)
 │
-├── database/
-│   └── medcare.db
-│
-├── requirements.txt
-│
-└── README.md
-```
-
----
-
-# 🔮 Future Enhancements
-
-* Android application
-* SMS alerts
-* AI health prediction
-* Hospital integration
-* Mono language support
-
----
-
-# 👨‍💻 Project Purpose
-
-MedCare aims to provide a simple, secure, and accessible healthcare companion for senior citizens by combining technology with caregiver support.
-
----
-
-# 📄 License
-
-This project is developed for educational and research purposes.
+├── app.py                     # Main Streamlit application entry point
+├── .env                       # Environment variables (Supabase keys, Email credentials)
+├── requirements.txt           # Project dependencies
+└── README.md                  # Project documentation

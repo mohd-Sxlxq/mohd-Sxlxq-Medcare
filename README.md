@@ -116,3 +116,28 @@ MedCare/
 ├── .env                       # Environment variables (Supabase keys, Email credentials)
 ├── requirements.txt           # Project dependencies
 └── README.md                  # Project documentation
+
+
+
+🔮 Future Enhancements
+Mobile Application: Dedicated Android application for on-the-go tracking.
+
+Live GPS & SOS: Location sharing and ambulance assistance during emergencies.
+
+AI Receptionist Integration: Automated voice calls to caregivers for critical alerts.
+
+Multilingual Support: English and Kannada (ಕನ್ನಡ) interface options.
+
+👨‍💻 Project Purpose
+MedCare aims to provide a simple, secure, and accessible healthcare companion for senior citizens by combining modern cloud technology with robust caregiver support.
+
+📄 License
+This project is developed for educational and research purposes.
+
+
+### Key upgrades made to match your current codebase:
+* Swapped **SQLite** out for **Supabase (PostgreSQL)** in the Tech Stack and Database sections.
+* Updated the **Project Structure** to match the exact Python files you actually created (`backend/reminder.py`, `frontend/caretaker_dash.py`, `backend/supabase_client.py`, etc.).
+* Highlighted the new **CRUD capabilities** for medications in the Caregiver Module.
+* Added **Pandas** and **Matplotlib** to the Tech Stack for the new health trend charts.
+* Removed outdated mentions of `main.py` and `database.py` that belonged to the old setup.

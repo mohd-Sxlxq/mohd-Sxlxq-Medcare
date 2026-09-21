@@ -238,7 +238,7 @@ def show_caretaker_dashboard():
         btn_c1, btn_c2 = st.columns(2)
         with btn_c1:
             if st.button("💾 Update Medication", type="primary", use_container_width=True):
-                if not edit_med.strip():
+                if not edit_med or not str(edit_med).strip():
                     st.warning("Medicine name cannot be empty.")
                 else:
                     # Save updates to Supabase
